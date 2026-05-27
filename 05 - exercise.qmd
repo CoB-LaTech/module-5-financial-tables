@@ -1,0 +1,67 @@
+---
+title: "5 - exercise"
+format: 
+  html: 
+    embed-resources: true
+editor: visual
+---
+
+We're going to revisit the ISRG financial statements, focusing on the 5 year annual income statement.
+
+### 1. Load libraries
+
+Insert a code chunk that loads the following libraries: `gt`, `gtExtras`, `svglite`, `webshot2`, `tidyverse`, `readxl`, and `janitor`.
+
+```{r}
+#| label: load-libraries
+#| warning: false
+#| message: false
+
+# Professional Tables
+
+# Data Import & Transformation
+
+```
+
+### 2. Import Excel table
+
+As before, let's import the ISRG financials. I've included them in your Files for this project. The file is `5 yr ISRG quarterly statements.xls`. Importantly, we're going to focus on the 5 year annual income statement, which is tab five (5). Be sure to drop the first four rows as before. Create a tibble called `ISRG_income_raw` where the data will be stored.
+
+```{r}
+#| label: import-excel
+
+# ISRG_income_raw <- 
+
+```
+
+### 3. Data cleaning
+
+Insert a code chunk that creates a new tibble `ISRG_income_wide`. Clean the names, create an `item_id`, and rename `x1` to `item_name`. Replace any `NA` numeric values with zeros. Create a `trend` column that bundles the five annual columns so we can drop sparklines in the finished table. You can ignore `group_id` and `item_type` for this exercise.
+
+```{r}
+#| label: create-wide-tibble
+
+# ISRG_income_wide <- 
+
+```
+
+### 4. Prepping for export to a fancy table
+
+Grab the code from the lesson and modify it. Create an object `ISRG_for_export` from your wide tibble. Change the title to "Annual Income Statement" and the subtitle to "Intuitive Surgical, Inc. 2018-2022." Change the tab spanner and column labels appropriately. Use sparklines. Highlight the `NET INCOME(LOSS)` row.
+
+```{r}
+#| label: create-gt-table
+
+# ISRG_for_export <-
+
+```
+
+### 5. Export to PDF and html
+
+Save your table as `ISRG_Income.pdf` and `ISRG_Income.html`.
+
+```{r}
+#| label: export-gt
+#| eval: false
+
+```

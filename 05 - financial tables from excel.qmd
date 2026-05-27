@@ -1,0 +1,178 @@
+---
+title: "5: Financial Tables from Excel"
+format: 
+  html: 
+    embed-resources: true
+editor: visual
+---
+
+### Introduction
+
+This lesson will show you how to take an Excel spreadsheet, for example, something that you need to work with quarterly in your firm, import and manipulate it in R, and export a publication quality table for your boss, clients, investors, whomever. The code will look daunting, but work through it. The point is to write code *once* that will allow your reporting to be automated going forward.
+
+In your Codespace, upload your Excel file to the project folder so it's in the working directory. Be sure to set your working directory where your Excel spreadsheet is so you don't have to type a full path in your code. That way, any output will also be saved to this directory. If you've forgotten how to do this in your Codespace, in the Files tab at the lower right window, click the `…` button on the far right to bring up an Explorer window. Find your directory and hit okay. Then, click the gear icon with "More" and "Set working directory." Done.
+
+A small quality-of-life note: if you are working in a Quarto project (which you should be), your working directory is automatically the folder containing this `.qmd` file. No `setwd()` needed. If for some reason you do want to set a path manually, use `here::here()` rather than a hard-coded path - that way your code works on any machine, not just yours.
+
+```{r}
+#| label: optional-path
+#| eval: false
+
+# Only if you're working outside a project:
+# setwd("path/to/your/folder")
+
+# Better, portable version (inside a project):
+# library(here)
+# path <- here("5 yr ISRG quarterly statements.xls")
+```
+
+Note that as long as your financial statements - or whatever Excel sheets you're using in your job function - are in the same format, you need only code this once to produce production quality tables with the click of a button.
+
+### Load libraries
+
+Load the packages we're going to use. Per usual, if you don't have a package installed, type `install.packages("packagename")` in the Console. You probably haven't used `gt`, `gtExtras`, or `janitor` before, so you'll need to install these.
+
+```{r}
+#| label: load-libraries
+#| warning: false
+#| message: false
+
+# Professional Tables
+library(gt)
+library(gtExtras)
+library(svglite)
+library(webshot2)
+
+# Data Import & Transformation
+library(tidyverse)
+library(readxl)
+library(janitor)
+```
+
+### Import Excel table
+
+We're going to use five years of quarterly statements for Intuitive Surgical. For now, we'll only import and work with the cash flow statement, which is the third sheet of the workbook. I'd recommend that you open and look at the workbook to familiarize yourself as to what it looks like. It will make the code below more understandable.
+
+```{r}
+#| label: import-excel
+
+ISRG_cashflow_raw <- read_excel(
+    path  = "5 yr ISRG quarterly statements.xls",
+    sheet = 3,
+    skip  = 4
+)
+```
+
+Take a look at the resulting table by clicking it in the **Variables panel**. You now have an R tibble from your Excel cash flow statement. You'll notice that `sheet = 3` pulls in only the third tab of the workbook, which is the cash flow statement, and `skip = 4` removes the first four rows that contain superfluous information given what we want to do.
+
+### Data preparation
+
+We're going to manipulate the data a bit before we create our professional looking table. We're going to create a new tibble for data prep and create a column using the row number for easy manipulation. Note we're doing this iteratively so you can see the steps involved. When you've become a pro, you can do all of this in one long R chunk, using the pipe `|>` to keep adding more functions.
+
+```{r}
+#| label: create-wide-tibble
+
+ISRG_cashflow_wide <- ISRG_cashflow_raw |>
+    clean_names() |>
+    rowid_to_column("item_id")
+```
+
+Open and look at the new tibble. You should see that R has renamed column names to native R formats, replacing spaces with `_` and making everything lower case. R also doesn't like blank column names, so has created the name `x1` for the column with the line item names, e.g. NET INCOME (LOSS).
+
+We're going to overwrite the `_wide` tibble, creating a group ID, and item type (input, output). This is so when we create our fancy output table we can do some formatting relevant to those new columns. These columns are for formatting only; we will hide them in the table we export.
+
+We will rename `x1` to `item_name` so it makes more sense, and replace `NA` values with zeros, because that's what they are.
+
+The group id will group cash flow items by firm function: operations, investing, and financing. There are 14 items related to operations cash flow, and 5 items each for investing and financing activities. The last group is simply a mix of things, like beginning/ending cash and the effect of foreign exchange on cash. We'll need to create a column for group ID and manually add the group number (this once). Item type will identify whether each line item is an input or output for formatting later, which we also have to manually assign (this once).
+
+Finally, we're also going to create a trend column that will allow us to create sparklines (visual trend lines) in our finished table.
+
+Remember, the code looks like a lot, and it is, but the point is to automate redundant tasks. Once you have your code set up and working, every time you get a new cash flow statement you can click a button, run the code, and get publication-ready tables.
+
+```{r}
+#| label: create-cols-assign-groups
+
+ISRG_cashflow_wide <- ISRG_cashflow_wide |>
+    rename(item_name = x1) |>
+    mutate(group_id  = c(1,1,1,1,1,1,1,1,1,1,1,1,1,1, 2,2,2,2,2, 3,3,3,3,3, 4,4,4,4),
+           item_type = c(rep("input", 13), "output",
+                         rep("input",  4), "output",
+                         rep("input",  4), "output",
+                         "input", "output", "input", "output")) |>
+    mutate(across(where(is.numeric), ~ replace_na(.x, 0))) |>
+    # For sparklines
+    rowwise() |>
+    mutate(trend = list(c_across(sep_18:jun_23))) |>
+    ungroup()
+```
+
+Open the updated tibble from the **Variables panel** and notice the changes. Now we can get fancy with our output. Before we go on, though, you can always export your work via the `writexl` package, should you wish.
+
+```{r}
+#| label: export-wide
+#| eval: false
+
+library(writexl)
+
+write_xlsx(ISRG_cashflow_wide, "ISRG_cashflow_wide.xlsx")
+```
+
+In terms of workflow, here's a hack. Since we need to relabel a bunch of columns (dates) to a more pleasing format, you can export the tibble to Excel as above. Then, in Excel, highlight the column names, e.g. `sep_18`, copy, then transpose them in a new sheet in Excel. Do your renaming there; Excel should automate some of this. When Excel figures out that you're putting "Sep 2018" next to the column `sep_18` it will do the same for all observations; you just hit Enter to accept the suggestion. Then, create columns with `=`, `"` and `,` in them. You can automate your formatting code by then creating a column of text using the `&` formulation so that you have a column with text as follows: `sep_18 = "Sep 2018",`. For example, my Excel formula was `=C5&D5&F5&E5&F5&G5`. Copy the text column from Excel and dump it in your R code. There. Time saved.
+
+### Using GT and gtExtras to create a publication-ready table
+
+We're going to pass our "wide" table to `gt` to make a publication ready table. Much of the code is formatting - renaming columns, putting a nice title and subtitle, formatting numbers to accounting format, etc. The code looks complicated, but it's not. Per usual, coding is about doing a lot of grunt work - ONCE - so that repetitive tasks are all but eliminated. Let's get going. First we'll create an R object that will retain the formatted table and do all the formatting in one step.
+
+```{r}
+#| label: create-gt-table
+
+ISRG_for_export <- ISRG_cashflow_wide |>
+    gt() |>
+    gtExtras::gt_plt_sparkline(trend) |>
+    tab_header(
+        title    = "Quarterly Cash Flow Statement",
+        subtitle = "Intuitive Surgical, Inc. (September 2018 - June 2023)"
+    ) |>
+    tab_spanner(
+        label   = "Values in USD Millions",
+        columns = sep_18:jun_23
+    ) |>
+    cols_label(
+        item_id   = "Item No.",
+        item_name = "Item Name",
+        item_type = "Item Type",
+        sep_18 = "Sep 18", dec_18 = "Dec 18", mar_19 = "Mar 19", jun_19 = "Jun 19",
+        sep_19 = "Sep 19", dec_19 = "Dec 19", mar_20 = "Mar 20", jun_20 = "Jun 20",
+        sep_20 = "Sep 20", dec_20 = "Dec 20", mar_21 = "Mar 21", jun_21 = "Jun 21",
+        sep_21 = "Sep 21", dec_21 = "Dec 21", mar_22 = "Mar 22", jun_22 = "Jun 22",
+        sep_22 = "Sep 22", dec_22 = "Dec 22", mar_23 = "Mar 23", jun_23 = "Jun 23",
+        trend  = "Trend"
+    ) |>
+    fmt_currency(columns = sep_18:jun_23, decimals = 2, accounting = TRUE) |>
+    cols_align(align = "center") |>
+    gtExtras::gt_highlight_rows(rows = item_type == "output", fill = "lightgrey") |>
+    cols_hide(columns = c(item_type, group_id)) |>
+    tab_options(
+        heading.title.font.size    = 20,
+        table.font.size            = 10,
+        heading.subtitle.font.size = 15,
+        column_labels.font.weight  = "bold"
+    )
+
+ISRG_for_export
+```
+
+Now we can export our finished table to PDF and html for use by others.
+
+```{r}
+#| label: export-gt
+#| eval: false
+
+# Export to PDF
+gtsave(ISRG_for_export, filename = "ISRG_CF.pdf")
+
+# Export to HTML
+gtsave(ISRG_for_export, filename = "ISRG_CF.html")
+```
+
+To be fair, five years of quarterly data is a lot of columns, and doesn't really work as a PDF in this case, but I wanted to show you that you can do it. It is possible to tell `gt` to put all of the data on one page in PDF, but it's not a good idea to do so; you will decide what looks best given what kind of data, tables, and audience you're working with. In this case, the html file looks pretty great, and I'd use that for public consumption.
